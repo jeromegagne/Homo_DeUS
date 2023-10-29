@@ -3,20 +3,17 @@ from NavGoalDeserializer import NavGoalDeserializer
 from NavGoal import NavGoal
 
 class NavSelector :
-    staticTopic = "navigationTopic"
-    staticInterruptTopic = "navigationInterrupt"
-    __goalList : List[NavGoal]
-    __currentGoal : NavGoal
-    __callBack = None
-    __currentLocation : Tuple[Point,Quaternion]
 
     def __init__(self, goalList : List[NavGoal] = [], currentGoal : NavGoal = None, topic : String = None) -> None:
-        self.__currentGoal = currentGoal
-        self.__goalList = goalList
-        self.__topic = topic
+        self.__currentGoal : NavGoal = currentGoal
+        self.__goalList : List[NavGoal] = goalList
+        self.__topic : String = topic
         self.__hz = rospy.get_param('~hz', 10)
-        self.__currentLocation = getPose() #remove if not working
+        self.__currentLocation : Tuple[Point,Quaternion] = getPose() #remove if not working
+        self.__callBack = None
+        self.__isActive : bool = False
         NavGoalDeserializer().Read(self.ExtendGoals)
+        self.initConnectionToNode()
 
     def ConnectCallBack(self,callBackFunction) -> None :
         self.__callBack = callBackFunction
@@ -67,6 +64,8 @@ class NavSelector :
         nbElem = len(self.GetGoalList()) 
         if nbElem != 0 and index < nbElem :
             self.GetGoalList()[index].UnblockNavGoal()
+            if (self.GetCurrentGoal() is None):
+                self.RemoveCurrentGoal()
             return
         hdWarn("Navigation Selector - No goal matches this index, no goal will be unblocked")
 
@@ -105,31 +104,33 @@ class NavSelector :
         #self.__goalList.sort() #Need to sort with a key, which key, I don't know
         pass
 
-    def __sendGoal(self) -> None:
-        goal = MoveBaseGoal()
+    def HandleNodeTaskEnd(self, endState, _) -> None:
+        if endState == 0:
+            self.__OnNavGoalFail(NAVGOALFAILED,endState)
+        elif endState == GoalStatus.SUCCEEDED :
+            self.__OnNavGoalSuccess()
+        else :
+            self.__OnNavGoalFail(NAVGOALFAILED,endState)
+        self.RemoveCurrentGoal()
 
+    def SendGoal(self) -> None:
+        goal = MoveBaseGoal()
         goal.target_pose.header.frame_id = "map"
         goal.target_pose.header.stamp = rospy.Time.now()
-
-        if self.GetCurrentGoal() is not None :
-            posPoint, oriQuat = self.GetCurrentGoal().GetPose()
-            goal.target_pose.pose.position = posPoint
-            goal.target_pose.pose.orientation = oriQuat
-            res = self.client.send_goal_and_wait(goal)#add correct timeout
-            print(f"Goal complete : {self.GetCurrentGoal().GetNavGoalID()}")
-            if res < GoalStatus.ABORTED :
-                self.__OnNavGoalSuccess()
-            else :
-                self.__OnNavGoalFail(NAVGOALFAILED,res)
-            self.RemoveCurrentGoal()
-        elif self.GetCurrentGoal() is None and self.NbUnblockedTask() == 0 :
-            hdInfo("Navigation Selector - No unblocked task left to select, throwing event to the controller")
-            self.__OnEvent(NOUNBLOCKEDNAVGOAL)
-        elif self.GetCurrentGoal() is None and len(self.GetGoalList()) == 0 :
-            hdInfo("Navigation Selector - No tasks left to select, throwing event to the controller")
-            self.__OnEvent(NONAVGOALREMAINING)
-        elif self.GetCurrentGoal() is None and len(self.GetGoalList()) == 0 :
-            self.RemoveCurrentGoal()
+        if self.client.get_state() not in [GoalStatus.PENDING, GoalStatus.ABORTED]:
+            if self.GetCurrentGoal() is not None and not self.GetCurrentGoal().IsBlocked():
+                posPoint, oriQuat = self.GetCurrentGoal().GetPose()
+                goal.target_pose.pose.position = posPoint
+                goal.target_pose.pose.orientation = oriQuat
+                self.client.send_goal(goal=goal,done_cb=self.HandleNodeTaskEnd)
+            elif self.GetCurrentGoal() is None and self.NbUnblockedTask() == 0 :
+                hdInfo("Navigation Selector - No unblocked task left to select, throwing event to the controller")
+                self.__OnEvent(NOUNBLOCKEDNAVGOAL)
+            elif self.GetCurrentGoal() is None and len(self.GetGoalList()) == 0 :
+                hdInfo("Navigation Selector - No tasks left to select, throwing event to the controller")
+                self.__OnEvent(NONAVGOALREMAINING)
+            elif self.GetCurrentGoal() is None and len(self.GetGoalList()) == 0 :
+                self.RemoveCurrentGoal()
 
     def __display_menu(self) -> None:
         #system("clear")
@@ -139,17 +140,22 @@ class NavSelector :
         print('(3) Block all tasks')
         print('(4) Unblock all tasks')
         print('(5) Reload the predef goals')
+        print('(6) Clear Terminal')
+        print('(7) Get status of the current goal')
+        print('(8) Cancel/Abort current goal')
         print('(9) Quit')
         if debug :
             print(f'Nombre de Navigation goal ici présent dans le pays du québec \n Nb = {len(self.GetGoalList())}')
+            print(f'Nombre de unblocked task = {self.NbUnblockedTask()}')
             if (self.GetCurrentGoal() is not None):
                 print(f'Current goal id : {self.GetCurrentGoal().GetNavGoalID()}')
 
-    def run(self) -> None: #Revoir au complet la func de run, pas un fan de comment on appel le __send_goal
-
+    def initConnectionToNode(self):
         self.client = actionlib.SimpleActionClient("move_base", MoveBaseAction)
         self.client.wait_for_server()
         self.__rate = rospy.Rate(self.__hz)
+
+    def run(self) -> None: #Will only manually control the class for now, once the HBBA controller works, will be automatic
 
         if self.GetCurrentGoal() is None and len(self.GetGoalList()) != 0 :
             self.SetCurrentGoal(self.GetGoalList()[0])
@@ -159,8 +165,8 @@ class NavSelector :
         while running:
             self.__display_menu()
             choice = int(input("Please enter your selection number: "))
-            if choice == 0: #Deg
-                self.__sendGoal()
+            if choice == 0:
+                self.SendGoal()
             elif choice == 1:
                 self.BlockGoal(0)
             elif choice == 2:
@@ -173,6 +179,11 @@ class NavSelector :
                 NavGoalDeserializer().Read(self.ExtendGoals)
             elif choice == 6:
                 system("clear")
+            elif choice == 7:
+                print(convGoalStatus(self.client.get_state()))
+            elif choice == 8:
+                self.client.cancel_goal()
+                pass
             elif choice == 9:
                 print("Bye")
                 running = False
