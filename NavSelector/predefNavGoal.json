@@ -1,0 +1,26 @@
+{
+    "Reception": {
+        "PosX" : -3.5,
+        "PosY" : -8.5,
+        "PosZ" : 0,
+        "ObjOri" : 1.5708
+    },
+    "Table 1": {
+        "PosX" : 1.75,
+        "PosY" : -5.5,
+        "PosZ" : 0,
+        "ObjOri" : 0
+    },
+    "Table 2": {
+        "PosX" : 2,
+        "PosY" : -7.5,
+        "PosZ" : 0,
+        "ObjOri" : 0
+    },
+    "Kitchen": {
+        "PosX" : -1.0,
+        "PosY" : 0.5,
+        "PosZ" : 0,
+        "ObjOri" : 0
+    }
+}
