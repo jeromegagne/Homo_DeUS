@@ -4,15 +4,17 @@ from NavGoal import NavGoal
 
 class NavSelector :
 
-    def __init__(self, goalList : List[NavGoal] = [], currentGoal : NavGoal = None, topic : String = None) -> None:
+    def __init__(self, goalList : List[NavGoal] = [], currentGoal : NavGoal = None, 
+                 topic : str = None, filename : str = None) -> None:
         self.__currentGoal : NavGoal = currentGoal
         self.__goalList : List[NavGoal] = goalList
-        self.__topic : String = topic
+        self.__topic : str = topic
         self.__hz = rospy.get_param('~hz', 10)
         self.__currentLocation : Tuple[Point,Quaternion] = getPose() #remove if not working
         self.__callBack = None
         self.__isActive : bool = False
-        NavGoalDeserializer().Read(self.ExtendGoals)
+        self.__navGoalSerializer = NavGoalDeserializer(filename)
+        self.__navGoalSerializer.Read(self.ExtendGoals)
         self.initConnectionToNode()
 
     def ConnectCallBack(self,callBackFunction) -> None :
@@ -30,7 +32,7 @@ class NavSelector :
     def AddGoal(self, goal : NavGoal) -> None :
         self.__goalList.append(goal)
 
-    def AddGoal(self, goalX : float, goalY : float, goalZ : float, goalOri : float, name : String) -> None :
+    def AddGoal(self, goalX : float, goalY : float, goalZ : float, goalOri : float, name : str) -> None :
         self.__goalList.append(NavGoal(goalX, goalY, goalZ, goalOri, name))
 
     def ExtendGoals(self, goals : List[NavGoal]) -> None :
@@ -80,7 +82,7 @@ class NavSelector :
                 cpt += 1
         return cpt
 
-    def __OnNavGoalFail(self, errorDesc : String, goalStatus : GoalStatus) -> None :
+    def __OnNavGoalFail(self, errorDesc : str, goalStatus : GoalStatus) -> None :
         hdErr(f"Navigation Selector - Failed to fulfill the current goal (NavGoalID = {self.GetCurrentGoal().GetNavGoalID()}), removed from the list and notified the main controller \
                 \nGoal created at {self.GetCurrentGoal().GetCreationTime()}, \
                 \nTime taken for this resolution = {self.GetCurrentGoal().GetNavGoalExistenceTime()} \
@@ -117,7 +119,7 @@ class NavSelector :
         goal = MoveBaseGoal()
         goal.target_pose.header.frame_id = "map"
         goal.target_pose.header.stamp = rospy.Time.now()
-        if self.client.get_state() not in [GoalStatus.PENDING, GoalStatus.ABORTED]:
+        if self.client.get_state() not in [GoalStatus.PENDING]:
             if self.GetCurrentGoal() is not None and not self.GetCurrentGoal().IsBlocked():
                 posPoint, oriQuat = self.GetCurrentGoal().GetPose()
                 goal.target_pose.pose.position = posPoint
@@ -126,7 +128,7 @@ class NavSelector :
             elif self.GetCurrentGoal() is None and self.NbUnblockedTask() == 0 :
                 hdInfo("Navigation Selector - No unblocked task left to select, throwing event to the controller")
                 self.__OnEvent(NOUNBLOCKEDNAVGOAL)
-            elif self.GetCurrentGoal() is None and len(self.GetGoalList()) == 0 :
+            elif self.GetCurrentGoal() is None and len(self.GetGoalList()) > 0 :
                 hdInfo("Navigation Selector - No tasks left to select, throwing event to the controller")
                 self.__OnEvent(NONAVGOALREMAINING)
             elif self.GetCurrentGoal() is None and len(self.GetGoalList()) == 0 :
@@ -144,6 +146,9 @@ class NavSelector :
         print('(7) Get status of the current goal')
         print('(8) Cancel/Abort current goal')
         print('(9) Quit')
+        print('(10) Set new goal')
+        print('(11) Dump the goals list in json')
+        print('(12) Print the nav goal list')
         if debug :
             print(f'Nombre de Navigation goal ici présent dans le pays du québec \n Nb = {len(self.GetGoalList())}')
             print(f'Nombre de unblocked task = {self.NbUnblockedTask()}')
@@ -157,14 +162,19 @@ class NavSelector :
 
     def run(self) -> None: #Will only manually control the class for now, once the HBBA controller works, will be automatic
 
-        if self.GetCurrentGoal() is None and len(self.GetGoalList()) != 0 :
-            self.SetCurrentGoal(self.GetGoalList()[0])
-            del self.__goalList[0] #Scuffed
+        # if self.GetCurrentGoal() is None and len(self.GetGoalList()) != 0 :
+        #     self.SetCurrentGoal(self.GetGoalList()[0])
+        #     del self.__goalList[0] #Scuffed
 
         running = True
         while running:
             self.__display_menu()
-            choice = int(input("Please enter your selection number: "))
+            strInput : str = input("Please enter your selection number: ")
+            if not strInput.isnumeric():
+                choice = None
+            else:
+                choice = int(strInput)
+ 
             if choice == 0:
                 self.SendGoal()
             elif choice == 1:
@@ -176,7 +186,8 @@ class NavSelector :
             elif choice == 4:
                 self.UnblockAllGoals()
             elif choice == 5:
-                NavGoalDeserializer().Read(self.ExtendGoals)
+                self.__goalList = []
+                self.__navGoalSerializer.Read(self.ExtendGoals)
             elif choice == 6:
                 system("clear")
             elif choice == 7:
@@ -184,9 +195,24 @@ class NavSelector :
             elif choice == 8:
                 self.client.cancel_goal()
                 pass
+            elif choice == 10:
+                # with topic /amcl_pose it possible to obtain the robot's position but position's name is still missing!
+                # coming 
+
+                goalName : str = input("Please enter your goal name: ")
+                strGoal : str = input("Please enter your coor (x y w) without (): ")
+                coords = [float(x) for x in strGoal.split()]
+                if len(coords) == 3:
+                    self.AddGoal(coords[0], coords[1], 0.0, coords[2], goalName)
+            elif choice == 11:
+                self.__navGoalSerializer.Write(self.__goalList)
+            elif choice == 12:
+                for goal in self.GetGoalList():
+                    print(goal)
             elif choice == 9:
                 print("Bye")
                 running = False
             else:
                 print("Choice is not valid")
+
             self.__rate.sleep()

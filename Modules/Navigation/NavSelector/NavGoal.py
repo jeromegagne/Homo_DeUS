@@ -3,7 +3,7 @@ import time
 
 class NavGoal :
     __navGoalID : int
-    __name : String
+    __name : str
     __posX : float
     __posY : float
     __posZ : float
@@ -11,7 +11,7 @@ class NavGoal :
     __creationTime : float
     __shouldStart : bool
 
-    def __init__(self, objPosX : float, objPosY : float, objPosZ : float, objOri : float, name : String = "", shouldStart : bool = True) -> None :
+    def __init__(self, objPosX : float, objPosY : float, objPosZ : float, objOri : float, name : str = "", shouldStart : bool = True) -> None :
         self.__posX = objPosX
         self.__posY = objPosY
         self.__posZ = objPosZ
@@ -20,6 +20,13 @@ class NavGoal :
         self.__name = name
         self.__creationTime = time.time()
         self.__navGoalID = getAndIncrementNavGoalCount()
+
+    def __repr__(self):
+        return self.__name + " : {" + \
+                "PosX : " + str(self.__posX) + ", " + \
+                "PosY : " + str(self.__posY) + ", " + \
+                "PosZ : " + str(self.__posZ) + ", " + \
+                "ObjOri : " + str(self.__objOri) + "}"
 
     def GetPos(self) -> Tuple[float, float, float] :
         return (self.__posX, self.__posY, self.__posZ)
@@ -45,7 +52,7 @@ class NavGoal :
     def GetNavGoalID(self) -> int :
         return self.__navGoalID
     
-    def GetName(self) -> String :
+    def GetName(self) -> str :
         return self.__name
     
     def BlockNavGoal(self) -> None :
