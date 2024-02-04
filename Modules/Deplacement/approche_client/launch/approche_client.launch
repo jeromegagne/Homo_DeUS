@@ -5,7 +5,7 @@
   <!-- robot parameters -->
   <arg name="base_type"     default="pmb2"/>
   <arg name="camera_model"  default="orbbec-astra"/>
-  <arg name="end_effector"  default="pal-gripper"/>
+  <arg name="end_effector"  default="schunk-wsg"/>
   <arg name="laser_model"  default="sick-571"/>
 
   <!-- gazebo parameters -->
@@ -18,6 +18,7 @@
   
   <arg name="recording"     default="false"/>
 
+  <arg name="approche_client" default="true"/>
   <!-- scripts flags -->
   <arg name="tuck_arm"      default="true"/>
  
@@ -40,5 +41,5 @@
   </include>
 
   <!-- https://wiki.ros.org/roslaunch/XML/node -->
-  <node if="true" name="approche_client" pkg="approche_client" type="approche_client.py" respawn="false" output="screen" launch-prefix="gnome-terminal --command"/>
+  <node if="$(arg approche_client)" name="approche_client" pkg="approche_client" type="approche_client.py" respawn="false" output="screen" launch-prefix="gnome-terminal --command"/>
 </launch>
