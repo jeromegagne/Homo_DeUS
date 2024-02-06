@@ -2,6 +2,7 @@
 
 import rospy
 from geometry_msgs.msg import Twist
+from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Range
 
 import numpy as np
@@ -14,13 +15,14 @@ class ObstacleDetectorSonar:
     self.__move_angular = 0.0
     
     self.__phone_vel_pub = rospy.Publisher("phone_vel", Twist, queue_size=1)
-    self.__key_vel_sub = rospy.Subscriber('key_vel', Twist, self.__key_vel_callback, queue_size=1)
+    self.__odom_sub = rospy.Subscriber('/mobile_base_controller/odom', Odometry, self.__odom_callback, queue_size=1)
     self.__sonar_sub = rospy.Subscriber('sonar_base', Range, self.__sonar_callback, queue_size=1)
-    rospy.on_shutdown(self.__node_shutdown)
 
     rospy.loginfo("Obstacle detector sonar initialized")
+    rospy.on_shutdown(self.__node_shutdown)
 
-  def __key_vel_callback(self, twist: Twist) -> None:
+  def __odom_callback(self, odom: Odometry) -> None:
+    twist : Twist = odom.twist.twist
     self.__move_linear = twist.linear.x / (abs(twist.linear.x)+1)
     self.__move_angular = twist.angular.z / (abs(twist.angular.z)+1)
 
@@ -44,7 +46,7 @@ class ObstacleDetectorSonar:
       rospy.loginfo("Obstacle detected with sonar! Stop!")
 
   def __node_shutdown(self) -> None:
-    self.__key_vel_sub.unregister()
+    self.__odom_sub.unregister()
     self.__sonar_sub.unregister()
     rospy.loginfo("Obstacle detector sonar shutdown")
 
