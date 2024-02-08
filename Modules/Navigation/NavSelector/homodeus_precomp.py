@@ -5,7 +5,7 @@ import actionlib
 
 from actionlib import GoalStatus
 from cv_bridge import CvBridge, CvBridgeError
-from geometry_msgs.msg import Point, Pose, PoseWithCovarianceStamped, Quaternion, Twist
+from geometry_msgs.msg import Point, Pose, PoseStamped, PoseWithCovarianceStamped, Quaternion, Twist
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal, MoveBaseActionFeedback
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import CameraInfo, Image, LaserScan

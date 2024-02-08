@@ -4,6 +4,13 @@ from NavGoal import NavGoal
 
 class NavSelector :
 
+    __instance = None
+
+    def __new__(cls):
+        if cls.__instance is None :
+            cls.__instance = super(NavSelector, cls).__new__(cls)
+        return cls.__instance
+
     def __init__(self, goalList : List[NavGoal] = [], currentGoal : NavGoal = None, 
                  topic : str = None, filename : str = None) -> None:
         self.__currentGoal : NavGoal = currentGoal
@@ -30,16 +37,26 @@ class NavSelector :
         self.__currentGoal = goal
 
     def AddGoal(self, goal : NavGoal) -> None :
-        self.__goalList.append(goal)
+        if self.__currentGoal is None :
+            self.__currentGoal = goal
+        else :
+            self.__goalList.append(goal)
 
     def AddGoal(self, goalX : float, goalY : float, goalZ : float, goalOri : float, name : str) -> None :
-        self.__goalList.append(NavGoal(goalX, goalY, goalZ, goalOri, name))
+        print(goalY)
+        if self.__currentGoal is None :
+            self.__currentGoal = (NavGoal(goalX, goalY, goalZ, goalOri, name))
+        else :
+            self.__goalList.append(NavGoal(goalX, goalY, goalZ, goalOri, name))
 
     def ExtendGoals(self, goals : List[NavGoal]) -> None :
         self.__goalList.extend(goals)
 
     def RemoveGoal(self, index : int) -> None :
         del self.__goalList[index]
+
+    def GetState(self) -> GoalStatus :
+        return self.client.get_state()
 
     def RemoveCurrentGoal(self) -> None : #prob rename
         for goal in self.GetGoalList() :
@@ -161,10 +178,6 @@ class NavSelector :
         self.__rate = rospy.Rate(self.__hz)
 
     def run(self) -> None: #Will only manually control the class for now, once the HBBA controller works, will be automatic
-
-        # if self.GetCurrentGoal() is None and len(self.GetGoalList()) != 0 :
-        #     self.SetCurrentGoal(self.GetGoalList()[0])
-        #     del self.__goalList[0] #Scuffed
 
         running = True
         while running:
