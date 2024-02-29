@@ -1,0 +1,75 @@
+name: customer
+origin: !!python/object/new:move_base_msgs.msg._MoveBaseGoal.MoveBaseGoal
+  state:
+  - !!python/object/new:geometry_msgs.msg._PoseStamped.PoseStamped
+    state:
+    - !!python/object/new:std_msgs.msg._Header.Header
+      state:
+      - 0
+      - !!python/object/new:rospy.rostime.Time
+        state:
+        - 0
+        - 0
+      - map
+    - !!python/object/new:geometry_msgs.msg._Pose.Pose
+      state:
+      - !!python/object/new:geometry_msgs.msg._Vector3.Vector3
+        state:
+        - -0.0031737822079929206
+        - 0.002030788716789484
+        - 0.0
+      - !!python/object/new:geometry_msgs.msg._Quaternion.Quaternion
+        state:
+        - 0.0
+        - 0.0
+        - -0.0018219121034082528
+        - 0.9999983403167665
+testPoint: !!python/object/new:move_base_msgs.msg._MoveBaseGoal.MoveBaseGoal
+  state:
+  - !!python/object/new:geometry_msgs.msg._PoseStamped.PoseStamped
+    state:
+    - !!python/object/new:std_msgs.msg._Header.Header
+      state:
+      - 0
+      - !!python/object/new:rospy.rostime.Time
+        state:
+        - 0
+        - 0
+      - map
+    - !!python/object/new:geometry_msgs.msg._Pose.Pose
+      state:
+      - !!python/object/new:geometry_msgs.msg._Point.Point
+        state:
+        - 1
+        - 0
+        - 0
+      - !!python/object/apply:numpy.core.multiarray._reconstruct
+        args:
+        - !!python/name:numpy.ndarray ''
+        - !!python/tuple
+          - 0
+        - b
+        state: !!python/tuple
+        - 1
+        - !!python/tuple
+          - 4
+        - !!python/object/apply:numpy.dtype
+          args:
+          - f8
+          - 0
+          - 1
+          state: !!python/tuple
+          - 3
+          - <
+          - null
+          - null
+          - null
+          - -1
+          - -1
+          - 0
+        - false
+        - !!binary |
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8D8=
+x: -1.0
+y: 5.6
+yaw: 0.68
