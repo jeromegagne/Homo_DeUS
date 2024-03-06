@@ -1,0 +1,3 @@
+[submodule "Modules/HBBA/hbba_lite"]
+	path = Modules/HBBA/hbba_lite
+	url = https://github.com/introlab/hbba_lite.git
