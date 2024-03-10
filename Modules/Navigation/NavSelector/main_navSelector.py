@@ -3,16 +3,20 @@
 from homodeus_precomp import *
 from NavSelector import NavSelector
 
-filename : str = "/home/urobot/tiago_public_ws/src/zhomodeus/base_navigation/scripts/predefNavGoal.json"
+filename : str = "/home/pal/tiago_public_ws/src/hbba_lite-main/scripts/NavSelector/predefNavGoal.json"
 
 def f(a) -> None: #As we see, we can get events from the NavSelector in the controller
   print(f"Voici ce qu'on recoit : {convGoalStatus(a)}")
 
 def main() -> None:
   initRosNode("nav_selector")
-  nav = NavSelector(filename=filename)
+  nav = NavSelector()
   nav.ConnectCallBack(f)
-  nav.run()
+  if DEBUG_NAV_SELECTOR :
+    nav.run()
+  else :
+    while not rospy.is_shutdown() :
+      nav.Behave()
 
 if __name__ == '__main__':
   try:

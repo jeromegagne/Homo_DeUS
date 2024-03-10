@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+  <arg name="public_sim"    default="true"/>
+
+  <!-- robot parameters -->
+  <arg name="base_type"     default="pmb2"/>
+  <arg name="camera_model"  default="orbbec-astra"/>
+  <arg name="end_effector"  default="schunk-wsg"/>
+  <arg name="laser_model"  default="sick-571"/>
+
+  <!-- gazebo parameters -->
+  <arg name="gzclient"      default="false"/>
+  <arg name="gzpose"        default="-x 0.0 -y 0.0 -z 0.0 -R 0.0 -P 0.0 -Y 0.0"/>
+
+  <arg name="world"         default="simple_office_with_people"/>
+  <arg name="lost"          default="false"/>
+  <arg name="map"           default="$(env HOME)/.pal/tiago_maps/configurations/$(arg world)"/>
+  
+  <arg name="recording"     default="false"/>
+
+  <arg name="approche_client" default="false"/>
+  <arg name="test_behave"     default="false"/>
+  <arg name="package"	       default="nav_selector"/>
+  <!-- scripts flags -->
+  <arg name="tuck_arm"      default="true"/>
+ 
+  <include file="$(find tiago_2dnav_gazebo)/launch/tiago_navigation.launch">
+    <arg name="public_sim"    value="$(arg public_sim)"/>
+
+    <arg name="base_type"     value="$(arg base_type)"/>
+    <arg name="end_effector"  value="$(arg end_effector)"/>
+
+    <arg name="gzclient"      value="$(arg gzclient)"/>
+    <arg name="gzpose"        value="$(arg gzpose)"/>
+
+    <arg name="world"         value="$(arg world)"/>
+    <arg name="lost"          value="$(arg lost)"/>
+    <arg name="map"           default="$(env HOME)/.pal/tiago_maps/configurations/$(arg world)"/>
+    
+    <arg name="recording"     value="$(arg recording)"/>
+    
+    <arg name="tuck_arm"      value="$(arg tuck_arm)"/>
+  </include>
+
+  <!-- https://wiki.ros.org/roslaunch/XML/node -->
+  <node if="$(arg approche_client)" name="main_navSelector" pkg="$(arg package)" type="main_navSelector.py" respawn="false" output="screen" launch-prefix="gnome-terminal --command"/>
+  <node if="$(arg test_behave)" name="fake_navGoal_publisher" pkg="$(arg package)" type="fake_navGoal_publisher.py" respawn="false" output="screen" launch-prefix="gnome-terminal --command"/>
+</launch>

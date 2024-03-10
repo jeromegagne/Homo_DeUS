@@ -5,7 +5,7 @@ import actionlib
 
 from actionlib import GoalStatus
 from cv_bridge import CvBridge, CvBridgeError
-from geometry_msgs.msg import Point, Pose, PoseStamped, PoseWithCovarianceStamped, Quaternion, Twist
+from geometry_msgs.msg import Point, Pose, PoseWithCovarianceStamped, Quaternion, Twist
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal, MoveBaseActionFeedback
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import CameraInfo, Image, LaserScan
@@ -13,6 +13,7 @@ from std_msgs.msg import Bool, Header, String
 from std_srvs.srv import Empty, SetBool, Trigger
 import tf
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
+
 
 #Normal imports
 from datetime import datetime
@@ -28,6 +29,7 @@ AL = actionlib
 rp = rospy
 
 #Global consts (treat it as const pls)
+DEBUG_NAV_SELECTOR = False
 moveBaseActionFeedback : MoveBaseActionFeedback = MoveBaseActionFeedback()
 NAVGOALSUCCESS = 0x1
 NAVGOALFAILED = 0x2
