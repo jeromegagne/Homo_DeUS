@@ -1,0 +1,38 @@
+version: "3.1"
+
+rules:
+
+- rule: Say goodbye anytime the user says goodbye
+  steps:
+  - intent: goodbye
+  - action: utter_goodbye
+
+- rule: Say 'I am a bot' anytime the user challenges
+  steps:
+  - intent: bot_challenge
+  - action: utter_iamabot
+
+- rule: Greet the user back
+  steps:
+  - intent: greet
+  - action: utter_greet
+
+- rule: Cheer up the user
+  steps:
+  - intent: mood_unhappy
+  - action: utter_cheer_up
+
+- rule: Ask if the user is helped
+  steps:
+  - intent: affirm
+  - action: utter_did_that_help
+
+- rule: Express happiness
+  steps:
+  - intent: mood_great
+  - action: utter_happy
+
+- rule: Deny request
+  steps:
+  - intent: deny
+  - action: utter_goodbye
