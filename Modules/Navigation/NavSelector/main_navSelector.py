@@ -10,7 +10,9 @@ def f(a) -> None: #As we see, we can get events from the NavSelector in the cont
 
 def main() -> None:
   initRosNode("nav_selector")
-  nav = NavSelector(filename=filename)
+  nav = NavSelector()
+  nav.SetFilename(filename=filename)
+  nav.LoadPreDefNavGoal()
   nav.ConnectCallBack(f)
   nav.run()
 
