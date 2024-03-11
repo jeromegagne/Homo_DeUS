@@ -1,11 +1,19 @@
+# from distutils import core
 from homodeus_precomp import *
 from NavGoalDeserializer import NavGoalDeserializer
 from NavGoal import NavGoal
 
 class NavSelector :
+    __instance = None
+    __filename : str = ""
+
+    def __new__(cls):
+        if cls.__instance is None :
+            cls.__instance = super(NavSelector, cls).__new__(cls)
+        return cls.__instance
 
     def __init__(self, goalList : List[NavGoal] = [], currentGoal : NavGoal = None, 
-                 topic : str = None, filename : str = None) -> None:
+                 topic : str = None) -> None:
         self.__currentGoal : NavGoal = currentGoal
         self.__goalList : List[NavGoal] = goalList
         self.__topic : str = topic
@@ -13,12 +21,14 @@ class NavSelector :
         self.__currentLocation : Tuple[Point,Quaternion] = getPose() #remove if not working
         self.__callBack = None
         self.__isActive : bool = False
-        self.__navGoalSerializer = NavGoalDeserializer(filename)
-        self.__navGoalSerializer.Read(self.ExtendGoals)
+
         self.initConnectionToNode()
 
     def ConnectCallBack(self,callBackFunction) -> None :
         self.__callBack = callBackFunction
+
+    def GetFilename(self) -> str :
+        return self.__filename
 
     def GetGoalList(self) -> List[NavGoal] :
         return self.__goalList
@@ -26,26 +36,46 @@ class NavSelector :
     def GetCurrentGoal(self) -> NavGoal :
         return self.__currentGoal
 
+    def SetFilename(self, filename:str) -> str :
+        self.__filename = filename
+
     def SetCurrentGoal(self, goal : NavGoal) -> None :
         self.__currentGoal = goal
 
+    def SetIndexCurrentGoal(self, index_goal : int) -> None :
+        nbElem = len(self.GetGoalList()) 
+        if nbElem != 0 and index_goal < nbElem :
+            self.SetCurrentGoal(self.GetGoalList()[index_goal])
+
     def AddGoal(self, goal : NavGoal) -> None :
-        self.__goalList.append(goal)
+        if self.__currentGoal is None :
+            self.__currentGoal = goal
+        else :
+            self.__goalList.append(goal)
 
     def AddGoal(self, goalX : float, goalY : float, goalZ : float, goalOri : float, name : str) -> None :
-        self.__goalList.append(NavGoal(goalX, goalY, goalZ, goalOri, name))
+        self.AddGoal(NavGoal(goalX, goalY, goalZ, goalOri, name))
 
     def ExtendGoals(self, goals : List[NavGoal]) -> None :
         self.__goalList.extend(goals)
 
+    def CancelAllGoals(self) -> None:
+        if self.client != None:
+            self.client.cancel_all_goals()
+
     def RemoveGoal(self, index : int) -> None :
         del self.__goalList[index]
 
+    def GetState(self) -> GoalStatus :
+        return self.client.get_state()
+
     def RemoveCurrentGoal(self) -> None : #prob rename
+        goal = self.GetCurrentGoal()
+        self.__goalList.remove(goal) # prone to cause error, maybe just wait after the loop then delete
+
         for goal in self.GetGoalList() :
             if (not goal.IsBlocked()) :
                 self.SetCurrentGoal(goal)
-                self.__goalList.remove(goal) # prone to cause error, maybe just wait after the loop then delete
                 self.__currentLocation = getPose()
                 return
         self.SetCurrentGoal(None)
@@ -157,14 +187,68 @@ class NavSelector :
 
     def initConnectionToNode(self):
         self.client = actionlib.SimpleActionClient("move_base", MoveBaseAction)
-        self.client.wait_for_server()
+        if not self.client.wait_for_server(timeout=rospy.Duration(5)):
+            print("SimpleActionClient isn't available !")
         self.__rate = rospy.Rate(self.__hz)
 
-    def run(self) -> None: #Will only manually control the class for now, once the HBBA controller works, will be automatic
+    def RelocateItselfInMap(self) -> None:
+        try:
+            # arreter le but en cours
+            if self.client.get_state() in [GoalStatus.PENDING]:
+                self.client.cancel_goal()
 
-        # if self.GetCurrentGoal() is None and len(self.GetGoalList()) != 0 :
-        #     self.SetCurrentGoal(self.GetGoalList()[0])
-        #     del self.__goalList[0] #Scuffed
+            # lancer le service du filtre de particules
+            srv_name_relocate = '/global_localization'
+            rospy.wait_for_service(srv_name_relocate, timeout=rospy.Duration(5))
+            if not hasattr(self, '__srv_relocate'):
+                self.__srv_relocate = rospy.ServiceProxy(srv_name_relocate, Empty)
+            self.__srv_relocate()
+
+            # envoyer un but impossible pour avoir le 'rotate_recovery'
+            recovery_goal = NavGoal(float('inf'), float('inf'), 0, 0, 'rotate_recovery')
+            self.__goalList.insert(0, recovery_goal)
+            self.SetCurrentGoal(recovery_goal)
+            self.SendGoal()
+        except rospy.ServiceException as src_exc:
+            print(f"Service {srv_name_relocate} ne repond pas pcq {src_exc}")
+
+    def ClearMap(self) -> None:
+        try:
+            srv_name_clear = '/move_base/clear_costmaps'
+            rospy.wait_for_service(srv_name_clear, timeout=rospy.Duration(5))
+            if not hasattr(self, '__srv_clear'):
+                self.__srv_clear = rospy.ServiceProxy(srv_name_clear, Empty)
+            self.__srv_clear()
+        except rospy.ServiceException as src_exc:
+            print(f"Service {srv_name_clear} ne repond pas pcq {src_exc}")
+
+    def __pose_cb(self, poseWCS) -> None:
+        pose: Pose = poseWCS.pose.pose
+        covar_mat : float[36] = poseWCS.pose.covariance
+
+        max_value = abs(max(covar_mat, key=abs))
+        mat_sum = sum([i for i in covar_mat])
+        print(f"Max {max_value}; Sum {mat_sum}")
+
+        self.__IThinkIAmNotLost = (max_value < 1 and mat_sum < 0.05)
+
+    def IThinkIKnowWhereIAm(self) -> bool:
+        if not hasattr(self, '__pose_covar_sub'):
+            topic_name = '/amcl_pose'
+            self.__pose_covar_sub = rospy.Subscriber(topic_name, PoseWithCovarianceStamped, self.__pose_cb)
+            self.__IThinkIAmNotLost = False
+
+        return self.__IThinkIAmNotLost
+
+    def LoadPreDefNavGoal(self) -> None:
+        if not hasattr(self, '__navGoalSerializer'):
+            self.__navGoalSerializer = NavGoalDeserializer(fileName=self.__filename)
+        self.__goalList = []
+        self.__navGoalSerializer.Read(self.ExtendGoals)
+        # for goal in self.GetGoalList():
+        #     print(goal)
+
+    def run(self) -> None: #Will only manually control the class for now, once the HBBA controller works, will be automatic
 
         running = True
         while running:
@@ -196,9 +280,6 @@ class NavSelector :
                 self.client.cancel_goal()
                 pass
             elif choice == 10:
-                # with topic /amcl_pose it possible to obtain the robot's position but position's name is still missing!
-                # coming 
-
                 goalName : str = input("Please enter your goal name: ")
                 strGoal : str = input("Please enter your coor (x y w) without (): ")
                 coords = [float(x) for x in strGoal.split()]

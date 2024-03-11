@@ -3,22 +3,23 @@
   <arg name="public_sim"    default="true"/>
 
   <!-- robot parameters -->
+  <arg name="package" default="tiago_gazebo"/>
   <arg name="base_type"     default="pmb2"/>
   <arg name="camera_model"  default="orbbec-astra"/>
   <arg name="end_effector"  default="pal-gripper"/>
   <arg name="laser_model"  default="sick-571"/>
 
   <!-- gazebo parameters -->
-  <arg name="gzclient"      default="false"/>
+  <arg name="gzclient"      default="true"/>
   <arg name="gzpose"        default="-x 0.0 -y 0.0 -z 0.0 -R 0.0 -P 0.0 -Y 0.0"/>
 
-  <arg name="world"         default="simple_office_with_people"/>
+  <arg name="world"         default="small_office"/>
   <arg name="lost"          default="false"/>
   <arg name="map"           default="$(env HOME)/.pal/tiago_maps/configurations/$(arg world)"/>
   
   <arg name="recording"     default="false"/>
 
-  <arg name="approche_client" default="true"/>
+  <arg name="launch_script" default="true"/>
   <!-- scripts flags -->
   <arg name="tuck_arm"      default="true"/>
  
@@ -41,5 +42,5 @@
   </include>
 
   <!-- https://wiki.ros.org/roslaunch/XML/node -->
-  <node if="$(arg approche_client)" name="approche_client" pkg="approche_client" type="main_ApprocheClient.py" respawn="false" output="screen" launch-prefix="gnome-terminal --command"/>
+  <node if="$(arg launch_script)" name="nav_selector" pkg="$(arg package)" type="test_nav_selector.py" respawn="false" output="screen" launch-prefix="gnome-terminal --command"/>
 </launch>
