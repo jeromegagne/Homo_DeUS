@@ -1,0 +1,22 @@
+# Script setup.py & __init__.py
+# approche_client/
+#   src/
+#       __init__.py             # vide
+#       main_ApprocheClient.py
+#   CMakeLists.txt
+#   package.xml
+#   setup.py
+# Navigation/
+#   NavSelector/
+#       __init__.py             # vide
+#       homodeus_precomp.py
+#       NavSelector.py
+#   CMakeLists.txt
+#   package.xml
+#   setup.py
+
+pal@tiago:~$ rosrun approche_client main_ApprocheClient.py 
+Traceback (most recent call last):
+  File $HOME"/tiago_public_ws/src/zhomodeus/approche_client/src/main_ApprocheClient.py", line 3, in <module>
+    from Navigation import homodeus_precomp
+ImportError: cannot import name 'homodeus_precomp' from 'Navigation' ($HOME/tiago_public_ws/devel/lib/python3/dist-packages/Navigation/__init__.py)

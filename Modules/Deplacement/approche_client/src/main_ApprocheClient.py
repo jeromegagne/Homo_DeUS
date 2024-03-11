@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from homodeus_precomp import *
+from Navigation import homodeus_precomp
 from approche_client import ApproachClient
 
 def main() -> None:
