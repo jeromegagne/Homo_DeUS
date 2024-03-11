@@ -1,2 +1,0 @@
-dialogue
--DCATKIN_DEVEL_PREFIX=/home/tiblond/Documents/Homo_DeUS/catkin_ws/devel -DCMAKE_INSTALL_PREFIX=/home/tiblond/Documents/Homo_DeUS/catkin_ws/install -G Unix Makefiles
