@@ -1,28 +1,31 @@
-# from distutils import core
 from homodeus_precomp import *
 from NavGoalDeserializer import NavGoalDeserializer
 from NavGoal import NavGoal
+import std_msgs.msg._String
 
 class NavSelector :
     __instance = None
-    __filename : str = ""
+    __fileName : String = ""
 
     def __new__(cls):
         if cls.__instance is None :
             cls.__instance = super(NavSelector, cls).__new__(cls)
         return cls.__instance
 
-    def __init__(self, goalList : List[NavGoal] = [], currentGoal : NavGoal = None, 
-                 topic : str = None) -> None:
+    def __init__(self, goalList : List[NavGoal] = [], currentGoal : NavGoal = None, topic : String = "goto", filename : String = None) -> None:
         self.__currentGoal : NavGoal = currentGoal
+        self.__goalSent : NavGoal  = None
         self.__goalList : List[NavGoal] = goalList
-        self.__topic : str = topic
+        self.__topic : String = topic
         self.__hz = rospy.get_param('~hz', 10)
         self.__currentLocation : Tuple[Point,Quaternion] = getPose() #remove if not working
         self.__callBack = None
         self.__isActive : bool = False
-
-        self.initConnectionToNode()
+        self.__navGoalSerializer = NavGoalDeserializer(filename)
+        self.__navGoalSerializer.Read(self.ExtendGoals)
+        self.__rate =rospy.Rate(self.__hz)
+        self.counter = 0
+        rospy.on_shutdown(self.closeConnectionToNode)
 
     def ConnectCallBack(self,callBackFunction) -> None :
         self.__callBack = callBackFunction
@@ -47,21 +50,29 @@ class NavSelector :
         if nbElem != 0 and index_goal < nbElem :
             self.SetCurrentGoal(self.GetGoalList()[index_goal])
 
-    def AddGoal(self, goal : NavGoal) -> None :
+    def AddGoalNav(self, goal : NavGoal) -> None :
         if self.__currentGoal is None :
             self.__currentGoal = goal
         else :
             self.__goalList.append(goal)
 
+    def AddGoalPose(self, pose : Pose) -> None :
+        validationReceived : std_msgs.msg.Int8 = 0b01
+        self.__publisher.publish(validationReceived)
+        print("Goal was received sending back a response")
+        p, q = pose.position, pose.orientation        
+        x, y, z = p.x, p.y, p.z
+        w = quarternion2euler(q).z
+        self.AddGoalNav(NavGoal(x, y, z, w, "NoName"))
+        print(f"Nombre de goal dans la liste : {len(self.__goalList) + 1}")
+        # if not DEBUG_NAV_SELECTOR :
+        #     self.Behave()
+
     def AddGoal(self, goalX : float, goalY : float, goalZ : float, goalOri : float, name : str) -> None :
-        self.AddGoal(NavGoal(goalX, goalY, goalZ, goalOri, name))
+        self.AddGoalNav(goalX, goalY, goalZ, goalOri, name)
 
     def ExtendGoals(self, goals : List[NavGoal]) -> None :
         self.__goalList.extend(goals)
-
-    def CancelAllGoals(self) -> None:
-        if self.client != None:
-            self.client.cancel_all_goals()
 
     def RemoveGoal(self, index : int) -> None :
         del self.__goalList[index]
@@ -70,12 +81,10 @@ class NavSelector :
         return self.client.get_state()
 
     def RemoveCurrentGoal(self) -> None : #prob rename
-        goal = self.GetCurrentGoal()
-        self.__goalList.remove(goal) # prone to cause error, maybe just wait after the loop then delete
-
         for goal in self.GetGoalList() :
             if (not goal.IsBlocked()) :
                 self.SetCurrentGoal(goal)
+                self.__goalList.remove(goal) # prone to cause error, maybe just wait after the loop then delete
                 self.__currentLocation = getPose()
                 return
         self.SetCurrentGoal(None)
@@ -113,23 +122,23 @@ class NavSelector :
         return cpt
 
     def __OnNavGoalFail(self, errorDesc : str, goalStatus : GoalStatus) -> None :
-        hdErr(f"Navigation Selector - Failed to fulfill the current goal (NavGoalID = {self.GetCurrentGoal().GetNavGoalID()}), removed from the list and notified the main controller \
-                \nGoal created at {self.GetCurrentGoal().GetCreationTime()}, \
-                \nTime taken for this resolution = {self.GetCurrentGoal().GetNavGoalExistenceTime()} \
+        hdErr(f"Navigation Selector - Failed to fulfill the current goal (NavGoalID = {self.__goalSent.GetNavGoalID()}), removed from the list and notified the main controller \
+                \nGoal created at {self.__goalSent.GetCreationTime()}, \
+                \nTime taken for this resolution = {self.__goalSent.GetNavGoalExistenceTime()} \
                 \nGoalStatus = {convGoalStatus(goalStatus)} \
                 \nGoalStatus Value = {goalStatus} \
                 \nError associated : {errorDesc}")
         self.__OnEvent(goalStatus)
 
     def __OnNavGoalSuccess(self) -> None :
-        hdInfo(f"Navigation Selector - Current goal (NavGoalID = {self.GetCurrentGoal().GetNavGoalID()}), succeeded, beginning next NavGoal when the controller is ready \
-                    \nGoal created at {self.GetCurrentGoal().GetCreationTime()}, \
-                    \nTime taken for the success = {self.GetCurrentGoal().GetNavGoalExistenceTime()}")
+        hdInfo(f"Navigation Selector - Current goal (NavGoalID = {self.__goalSent.GetNavGoalID()}), succeeded, beginning next NavGoal when the controller is ready \
+                    \nGoal created at {self.__goalSent.GetCreationTime()}, \
+                    \nTime taken for the success = {self.__goalSent.GetNavGoalExistenceTime()}")
         self.__OnEvent(NAVGOALSUCCESS)
 
     def __OnEvent(self, eventContent) -> None :
-        if eventContent is not None and self.GetCurrentGoal() is not None:
-            hdInfo(f"Navigation Selector - Event triggered by the current Navigation Goal (NavGoalID = {self.GetCurrentGoal().GetNavGoalID()})")
+        if eventContent is not None and (self.GetCurrentGoal() is not None  or self.__goalSent is not None):
+            hdInfo(f"Navigation Selector - Event triggered by the current Navigation Goal (NavGoalID = {self.__goalSent.GetNavGoalID()})")
             self.__callBack(eventContent)
 
     def Sort(self) -> None:
@@ -144,17 +153,21 @@ class NavSelector :
         else :
             self.__OnNavGoalFail(NAVGOALFAILED,endState)
         self.RemoveCurrentGoal()
+        self.__goalSent = None
 
     def SendGoal(self) -> None:
         goal = MoveBaseGoal()
         goal.target_pose.header.frame_id = "map"
         goal.target_pose.header.stamp = rospy.Time.now()
         if self.client.get_state() not in [GoalStatus.PENDING]:
-            if self.GetCurrentGoal() is not None and not self.GetCurrentGoal().IsBlocked():
+            if self.GetCurrentGoal() is not None and not self.GetCurrentGoal().IsBlocked() : 
+                print(self.__currentGoal)
                 posPoint, oriQuat = self.GetCurrentGoal().GetPose()
                 goal.target_pose.pose.position = posPoint
                 goal.target_pose.pose.orientation = oriQuat
                 self.client.send_goal(goal=goal,done_cb=self.HandleNodeTaskEnd)
+                self.__goalSent = self.__currentGoal
+                self.__currentGoal = None
             elif self.GetCurrentGoal() is None and self.NbUnblockedTask() == 0 :
                 hdInfo("Navigation Selector - No unblocked task left to select, throwing event to the controller")
                 self.__OnEvent(NOUNBLOCKEDNAVGOAL)
@@ -185,13 +198,23 @@ class NavSelector :
             if (self.GetCurrentGoal() is not None):
                 print(f'Current goal id : {self.GetCurrentGoal().GetNavGoalID()}')
 
-    def initConnectionToNode(self):
+    def initConnectionToNode(self) -> None :
         self.client = actionlib.SimpleActionClient("move_base", MoveBaseAction)
+        self.__publisher = rospy.Publisher(self.__topic+"/Response", std_msgs.msg.Int8, queue_size = 10,  latch = False)
+        self.__subscriber = rospy.Subscriber(self.__topic+"/Request", Pose, callback = self.AddGoalPose, queue_size = 10)
         if not self.client.wait_for_server(timeout=rospy.Duration(5)):
             print("SimpleActionClient isn't available !")
         self.__rate = rospy.Rate(self.__hz)
 
-    def RelocateItselfInMap(self) -> None:
+    def closeConnectionToNode(self) -> None :
+        self.__goalList.clear()
+        if self.client.get_state() == GoalStatus.ACTIVE :
+            self.client.cancel_goal()
+        self.__currentGoal = None
+        self.__publisher.unregister()
+        self.__subscriber.unregister()
+
+    def RelocateItselfInMap(self) -> None :
         try:
             # arreter le but en cours
             if self.client.get_state() in [GoalStatus.PENDING]:
@@ -239,7 +262,7 @@ class NavSelector :
             self.__IThinkIAmNotLost = False
 
         return self.__IThinkIAmNotLost
-
+    
     def LoadPreDefNavGoal(self) -> None:
         if not hasattr(self, '__navGoalSerializer'):
             self.__navGoalSerializer = NavGoalDeserializer(fileName=self.__filename)
@@ -248,8 +271,28 @@ class NavSelector :
         # for goal in self.GetGoalList():
         #     print(goal)
 
-    def run(self) -> None: #Will only manually control the class for now, once the HBBA controller works, will be automatic
+    def Behave(self):
+        if self.counter % 10 == 0 :
+            ...#print("currently behaving")
 
+        self.counter += 1
+
+        if self.__currentGoal is not None and self.__goalSent is None:
+            self.Sort()
+            self.SendGoal()
+
+    def run(self) -> None: 
+        self.initConnectionToNode()
+        if (not DEBUG_NAV_SELECTOR) :
+            print("starting the navSelector in automatic mode")
+            while not rospy.is_shutdown() :
+                self.Behave()
+                self.__rate.sleep()
+            return
+
+        # if self.GetCurrentGoal() is None and len(self.GetGoalList()) != 0 :
+        #     self.SetCurrentGoal(self.GetGoalList()[0])
+        #     del self.__goalList[0] #Scuffed
         running = True
         while running:
             self.__display_menu()
