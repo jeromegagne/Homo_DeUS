@@ -15,7 +15,7 @@ public:
     HDStrategy<T>(std::shared_ptr<FilterPool> filterPool, ros::NodeHandle& nodeHandle, const std::map<std::string, bool>& publisherTopicList, const std::map<std::string, bool>& subscriberTopicList, DesireSet& desireSet , std::unordered_map<std::string, FilterConfiguration> filterConfigurationByName);
 
 protected:
-    virtual void SubscriberCallBack() {};
+    virtual void SubscriberCallBack(const std_msgs::String::ConstPtr& msg) {};
 
 private:
     std::vector<ros::Publisher>  m_PublisherList{};
