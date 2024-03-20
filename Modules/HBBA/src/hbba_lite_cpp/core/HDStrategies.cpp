@@ -22,7 +22,7 @@ void GotoStrategy::Publish(GotoDesire desire)
 {
     GotoStrategy::m_desireID = desire.id();
     std_msgs::String msg;
-    msg.data = desire.name();
+    msg.data = desire.id();
     Stragy<GotoDesire>::onEnabling(msg);
     /*GotoStrategy::onEnabling(msg);*/
     for(ros::Publisher pub : GotoStrategy::m_PublisherList){
